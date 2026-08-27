@@ -1,0 +1,1099 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>논문 탐색 에이전트</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/jetbrains-mono@5.0.20/400.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/jetbrains-mono@5.0.20/500.css">
+<style>
+:root{
+  --paper:#F7F8F6; --card:#FFFFFF; --ink:#1A2430; --muted:#69757F;
+  --rule:#DFE3E0; --rule-soft:#EDF0EE; --slate:#35506E;
+  --ok:#2C7A5D; --ok-bg:#EAF3EF;
+  --warn:#A8761E; --warn-bg:#F8F1E4;
+  --bad:#A3423C; --bad-bg:#F8EBEA;
+  --shadow:rgba(0,0,0,.16);
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --sans:"Pretendard Variable",Pretendard,-apple-system,BlinkMacSystemFont,"Malgun Gothic",system-ui,sans-serif;
+  color-scheme:light;
+}
+
+/* 어두운 배경에서는 채도가 높은 색이 번져 보인다. 판정 색은 밝기를 올리고
+   채도를 낮춰 세 상태의 구분이 유지되도록 다시 잡았다. */
+html[data-theme="dark"]{
+  --paper:#14181C; --card:#1B2026; --ink:#E4E8EC; --muted:#8D9AA5;
+  --rule:#2C333B; --rule-soft:#242A31; --slate:#7FA6D8;
+  --ok:#5FBE93; --ok-bg:#1A2B24;
+  --warn:#D8A85C; --warn-bg:#2C2519;
+  --bad:#E08079; --bad-bg:#2E1F1E;
+  --shadow:rgba(0,0,0,.5);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--paper);color:var(--ink);font-family:var(--sans);
+  font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased;
+}
+button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
+a{color:var(--slate)}
+
+.wrap{max-width:1080px;margin:0 auto;padding:0 24px 96px}
+
+/* ── header ─────────────────────────────────────── */
+header{
+  border-bottom:1px solid var(--rule);background:var(--paper);
+  position:sticky;top:0;z-index:20;
+}
+.hbar{max-width:1080px;margin:0 auto;padding:18px 24px;display:flex;align-items:baseline;gap:14px}
+.mark{font-weight:700;font-size:17px;letter-spacing:-.02em}
+.tagline{color:var(--muted);font-size:13px;flex:1}
+.hbtn + .hbtn{margin-left:8px}
+#themeBtn{margin-left:auto;font-size:15px;line-height:1;padding:6px 11px}
+.hbtn{
+  margin-left:auto;background:none;border:1px solid var(--rule);border-radius:6px;
+  padding:6px 13px;font-size:13px;cursor:pointer;color:var(--muted);
+}
+.hbtn:hover{border-color:var(--slate);color:var(--slate)}
+
+/* ── panels ─────────────────────────────────────── */
+.panel{
+  background:var(--card);border:1px solid var(--rule);border-radius:10px;
+  padding:22px;margin-top:22px;
+}
+.panel h2{
+  margin:0 0 4px;font-size:12px;font-weight:600;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--slate);
+}
+.panel .sub{margin:0 0 18px;font-size:13px;color:var(--muted)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
+.field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.field label{font-size:12.5px;font-weight:600;color:var(--slate)}
+.field .hint{font-size:12px;color:var(--muted);line-height:1.5}
+input[type=text],input[type=password],input[type=number],select,textarea{
+  border:1px solid var(--rule);border-radius:6px;padding:9px 11px;
+  background:var(--card);width:100%;transition:border-color .12s;
+}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--slate);outline-offset:-1px;border-color:var(--slate)}
+input[type=text].mono,input[type=password]{font-family:var(--mono);font-size:13px}
+textarea{resize:vertical;min-height:88px;line-height:1.6}
+
+.divider{border:0;border-top:1px solid var(--rule-soft);margin:22px 0}
+.checks{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:9px;margin-top:16px}
+.chk{display:flex;align-items:flex-start;gap:8px;font-size:13.5px;cursor:pointer;line-height:1.5}
+.chk input{margin:3px 0 0;flex:none;accent-color:var(--slate)}
+.chk em{font-style:normal;color:var(--muted);font-size:12.5px}
+.field .opt{font-weight:400;color:var(--muted);font-size:11.5px}
+
+/* toggle */
+.toggle{display:flex;align-items:center;gap:11px;cursor:pointer;user-select:none}
+.toggle input{position:absolute;opacity:0;width:0;height:0}
+.track{
+  width:40px;height:23px;border-radius:12px;background:var(--rule);
+  position:relative;transition:background .16s;flex:none;
+}
+.track::after{
+  content:"";position:absolute;top:2.5px;left:2.5px;width:18px;height:18px;
+  border-radius:50%;background:var(--card);transition:transform .16s;
+  box-shadow:0 1px 3px var(--shadow);
+}
+.toggle input:checked + .track{background:var(--ok)}
+.toggle input:checked + .track::after{transform:translateX(17px)}
+.toggle input:focus-visible + .track{outline:2px solid var(--slate);outline-offset:2px}
+.toggle .tl{font-weight:600;font-size:13.5px}
+
+.pathnote{font-size:12.5px;margin-top:7px;font-family:var(--mono)}
+.pathnote.ok{color:var(--ok)} .pathnote.bad{color:var(--bad)} .pathnote.neutral{color:var(--muted)}
+
+/* ── run ────────────────────────────────────────── */
+.runrow{display:flex;gap:12px;margin-top:14px;align-items:flex-start}
+.btn{
+  background:var(--ink);color:var(--paper);border:0;border-radius:7px;
+  padding:11px 22px;font-weight:600;cursor:pointer;white-space:nowrap;
+  transition:opacity .12s;
+}
+.btn:hover:not(:disabled){opacity:.85}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn.ghost{background:none;color:var(--muted);border:1px solid var(--rule)}
+.btn.ghost:hover:not(:disabled){color:var(--bad);border-color:var(--bad);opacity:1}
+
+.seedbox{
+  margin-top:16px;padding:14px 16px;background:var(--paper);
+  border:1px solid var(--rule);border-radius:8px;
+}
+.seedbox label{display:block;font-size:12.5px;font-weight:600;color:var(--slate);margin-bottom:6px}
+.seedbox .opt{font-weight:400;color:var(--muted);font-size:11.5px}
+.seedbox textarea{font-family:var(--mono);font-size:12.5px;min-height:60px}
+.seedbox .hint{display:block;margin-top:7px;font-size:12px;color:var(--muted);line-height:1.55}
+.seednote{font-family:var(--mono);font-size:11.5px;margin-top:7px}
+.seednote .ok{color:var(--ok)} .seednote .bad{color:var(--bad)}
+
+.seedpanel{
+  margin-top:18px;padding:13px 16px;background:var(--ok-bg);
+  border-left:3px solid var(--ok);border-radius:0 7px 7px 0;display:none;
+}
+.seedpanel.on{display:block}
+.seedpanel h4{margin:0 0 7px;font-size:11.5px;font-weight:600;letter-spacing:.07em;
+  text-transform:uppercase;color:var(--ok)}
+.seedpanel ul{margin:0 0 8px;padding-left:18px;font-size:13px}
+.seedpanel li{margin-bottom:3px}
+.seedpanel .vocab{font-family:var(--mono);font-size:11.5px;color:var(--muted);line-height:1.7}
+.seedpanel .vocab b{color:var(--ink);font-weight:500}
+
+.donebar{
+  display:none;margin-top:22px;padding:16px 18px;border-radius:8px;
+  background:var(--ok-bg);border:1px solid var(--ok);border-left-width:4px;
+}
+.donebar.on{display:block}
+.donebar.stopped{background:var(--warn-bg);border-color:var(--warn)}
+.donebar.empty{background:var(--rule-soft);border-color:var(--rule)}
+.donehead{display:flex;align-items:center;gap:9px;margin-bottom:9px}
+.dicon{
+  width:22px;height:22px;border-radius:50%;background:var(--ok);color:var(--paper);
+  display:flex;align-items:center;justify-content:center;font-size:14px;flex:none;
+}
+.donebar.stopped .dicon{background:var(--warn)}
+.donebar.empty .dicon{background:var(--muted)}
+.dtitle{font-weight:500;font-size:15px}
+.delapsed{margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--muted)}
+.dstats{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:9px}
+.dstat{
+  font-family:var(--mono);font-size:12px;padding:4px 10px;border-radius:5px;
+  background:var(--card);border:1px solid var(--rule);
+}
+.dstat b{font-weight:500}
+.dstat.good{color:var(--ok);border-color:var(--ok)}
+.dstat.warn{color:var(--warn);border-color:var(--warn)}
+.dpath{font-family:var(--mono);font-size:11.5px;color:var(--muted);word-break:break-all;line-height:1.7}
+.dpath b{color:var(--ink);font-weight:500}
+
+/* ── signature: verdict ledger ──────────────────── */
+.ledger{margin-top:22px;display:none}
+.ledger.on{display:block}
+.ledgerhead{display:flex;align-items:baseline;gap:10px;margin-bottom:9px}
+.ledgerhead .t{font-size:12px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--slate)}
+.ledgerhead .n{font-family:var(--mono);font-size:12.5px;color:var(--muted);margin-left:auto}
+.strip{
+  display:flex;height:34px;border-radius:7px;overflow:hidden;
+  background:repeating-linear-gradient(90deg,var(--rule-soft) 0 7px,transparent 7px 14px);
+  border:1px solid var(--rule);
+}
+.seg{
+  transition:flex-grow .45s cubic-bezier(.2,.8,.3,1);flex-grow:0;flex-basis:0;
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:12px;font-weight:500;color:#fff;overflow:hidden;
+}
+.seg.v{background:var(--ok)} .seg.u{background:var(--warn)}
+.seg.n{background:var(--bad)} .seg.x{background:var(--muted)}
+
+.nowline{
+  font-family:var(--mono);font-size:12px;color:var(--muted);
+  margin-bottom:9px;min-height:18px;display:flex;align-items:center;gap:8px;
+}
+.nowline:empty{display:none}
+.nowline .pulse{
+  width:6px;height:6px;border-radius:50%;background:var(--slate);flex:none;
+  animation:pulse 1.3s ease-in-out infinite;
+}
+@keyframes pulse{0%,100%{opacity:.25}50%{opacity:1}}
+.nowline .what{color:var(--slate);font-weight:500}
+.nowline .who{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.chips{display:flex;gap:8px;margin-top:13px;flex-wrap:wrap}
+.chip{
+  border:1px solid var(--rule);background:var(--card);border-radius:20px;
+  padding:5px 14px;font-size:13px;cursor:pointer;display:flex;gap:7px;align-items:center;
+  transition:border-color .12s;
+}
+.chip:hover{border-color:var(--slate)}
+.chip[aria-pressed=true]{border-color:var(--ink);background:var(--ink);color:var(--paper)}
+.chip .c{font-family:var(--mono);font-size:12px;opacity:.75}
+.dot{width:7px;height:7px;border-radius:50%;flex:none}
+.dot.v{background:var(--ok)} .dot.u{background:var(--warn)}
+.dot.n{background:var(--bad)} .dot.x{background:var(--muted)}
+
+/* ── result cards ───────────────────────────────── */
+#results{margin-top:20px;display:flex;flex-direction:column;gap:12px}
+.rec{
+  background:var(--card);border:1px solid var(--rule);border-left:4px solid var(--rule);
+  border-radius:8px;padding:16px 18px;
+}
+.rec.v{border-left-color:var(--ok)} .rec.u{border-left-color:var(--warn)}
+.rec.n{border-left-color:var(--bad)} .rec.x{border-left-color:var(--muted)}
+.rec h3{margin:0 0 7px;font-size:15.5px;font-weight:600;line-height:1.45;letter-spacing:-.01em}
+.meta{font-size:13px;color:var(--muted);margin-bottom:11px}
+.badges{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:11px}
+.bdg{
+  font-family:var(--mono);font-size:11px;font-weight:500;padding:3px 9px;border-radius:4px;
+  letter-spacing:.03em;background:var(--rule-soft);color:var(--muted);
+}
+.bdg.v{background:var(--ok-bg);color:var(--ok)}
+.bdg.u{background:var(--warn-bg);color:var(--warn)}
+.bdg.n{background:var(--bad-bg);color:var(--bad)}
+.bdg.x{background:var(--rule-soft);color:var(--muted)}
+.reason{font-size:13.5px;color:var(--muted);margin-bottom:11px}
+
+details.more{border-top:1px solid var(--rule-soft);padding-top:11px;margin-top:3px}
+details.more summary{
+  cursor:pointer;font-size:12.5px;color:var(--slate);font-weight:600;
+  list-style:none;user-select:none;
+}
+details.more summary::-webkit-details-marker{display:none}
+details.more summary::before{content:"▸ ";display:inline-block;transition:transform .15s}
+details.more[open] summary::before{transform:rotate(90deg)}
+.dbody{padding-top:13px}
+
+table.ev{width:100%;border-collapse:collapse;font-size:12.5px;margin-bottom:14px}
+table.ev th{
+  text-align:left;font-family:var(--mono);font-size:10.5px;letter-spacing:.07em;
+  text-transform:uppercase;color:var(--muted);font-weight:500;
+  padding:5px 9px 5px 0;border-bottom:1px solid var(--rule);
+}
+table.ev td{padding:6px 9px 6px 0;border-bottom:1px solid var(--rule-soft);vertical-align:top}
+table.ev td.oc{font-family:var(--mono);font-size:11.5px;white-space:nowrap;font-weight:500}
+.oc-match{color:var(--ok)} .oc-mismatch,.oc-absent{color:var(--bad)} .oc-unavailable{color:var(--muted)}
+
+.sect{margin-bottom:12px}
+.sect h4{margin:0 0 4px;font-size:12px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--slate)}
+.sect p{margin:0;font-size:13.5px;white-space:pre-wrap}
+.q{
+  display:flex;gap:10px;padding:7px 0;border-bottom:1px solid var(--rule-soft);
+  font-size:12.5px;align-items:flex-start;
+}
+.q .pg{font-family:var(--mono);font-size:11.5px;color:var(--muted);flex:none;width:42px;padding-top:1px}
+.q .tx{flex:1;min-width:0}
+.q .st{font-family:var(--mono);font-size:11px;flex:none;white-space:nowrap;padding-top:2px}
+.q .st.y{color:var(--ok)} .q .st.n{color:var(--bad)}
+
+.note{
+  background:var(--warn-bg);border-left:3px solid var(--warn);padding:10px 13px;
+  border-radius:0 5px 5px 0;font-size:13px;margin-top:11px;
+}
+.note.ok{background:var(--ok-bg);border-left-color:var(--ok)}
+.path{font-family:var(--mono);font-size:11.5px;color:var(--muted);margin-top:11px;word-break:break-all}
+
+/* ── log ────────────────────────────────────────── */
+#logwrap{margin-top:22px;display:none}
+#logwrap.on{display:block}
+#log{
+  font-family:var(--mono);font-size:12px;line-height:1.75;max-height:190px;
+  overflow-y:auto;background:var(--card);border:1px solid var(--rule);
+  border-radius:8px;padding:13px 15px;
+}
+#log div{padding:1px 0}
+#log .warn{color:var(--warn)} #log .error{color:var(--bad)} #log .q{color:var(--slate);font-weight:500;border:0;padding:5px 0 1px}
+
+.empty{text-align:center;padding:52px 20px;color:var(--muted);font-size:14px}
+.toast{
+  position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(80px);
+  background:var(--ink);color:var(--paper);padding:11px 22px;border-radius:7px;font-size:13.5px;
+  transition:transform .22s;z-index:50;box-shadow:0 4px 16px var(--shadow);
+}
+.toast.on{transform:translateX(-50%) translateY(0)}
+.hidden{display:none !important}
+
+/* 서버 없이 열었을 때 */
+.offline{
+  position:fixed;inset:0;background:var(--paper);z-index:100;
+  display:none;align-items:center;justify-content:center;padding:24px;
+}
+.offline.on{display:flex}
+.offline-in{max-width:560px}
+.offline h1{font-size:22px;margin:0 0 12px;letter-spacing:-.02em}
+.offline p{color:var(--muted);font-size:14.5px;margin:0 0 14px;line-height:1.65}
+.offline p.how{color:var(--ink)}
+.offline pre{
+  font-family:var(--mono);font-size:13px;background:var(--card);
+  border:1px solid var(--rule);border-left:3px solid var(--slate);
+  border-radius:0 7px 7px 0;padding:14px 16px;margin:0 0 16px;
+  white-space:pre-wrap;word-break:break-all;line-height:1.7;
+}
+.offline code{font-family:var(--mono);font-size:12.5px;background:var(--rule-soft);padding:1px 5px;border-radius:3px}
+
+@media (max-width:640px){
+  .wrap,.hbar{padding-left:16px;padding-right:16px}
+  .runrow{flex-direction:column}.runrow .btn{width:100%}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none !important;animation:none !important}}
+</style>
+</head>
+<body>
+
+<div class="offline" id="offline">
+  <div class="offline-in">
+    <h1>서버를 먼저 실행하세요</h1>
+    <p id="offlineWhy">이 페이지는 화면일 뿐입니다. 논문 검색·검증·저장은 같이 들어 있는 파이썬 서버가 합니다.</p>
+    <p class="how">압축을 푼 폴더에서 터미널(또는 PowerShell)을 열고:</p>
+    <pre id="offlineCmd">pip install -r requirements.txt
+python server.py</pre>
+    <p class="how">브라우저가 <b>http://127.0.0.1:8765</b> 로 열립니다. 주소창이 <code>파일 …index.html</code>이면 아직 서버를 거치지 않은 상태입니다.</p>
+    <button class="btn" id="retryBtn">다시 확인</button>
+  </div>
+</div>
+
+<header>
+  <div class="hbar">
+    <span class="mark">논문 탐색 에이전트</span>
+    <span class="tagline">검증된 것만 요약합니다. 검증 못 한 것도 함께 보여줍니다.</span>
+    <button class="hbtn" id="themeBtn" title="밝음 / 어두움 전환" aria-label="테마 전환">◐</button>
+    <button class="hbtn" id="toggleSettings">설정</button>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- 설정 -->
+  <section class="panel" id="settings">
+    <h2>설정</h2>
+    <p class="sub">한 번 저장하면 <code>config.yaml</code>에 남습니다. API 키는 <code>.env</code>에만 저장되고 브라우저로는 마스킹된 값만 돌아옵니다.</p>
+
+    <div class="grid">
+      <div class="field">
+        <label for="provider">LLM 공급자</label>
+        <select id="provider"></select>
+        <span class="hint">쿼리 생성과 요약에만 씁니다. 검증은 모델과 무관합니다.</span>
+      </div>
+      <div class="field">
+        <label for="model">모델</label>
+        <select id="model"></select>
+        <span class="hint">litellm 모델 문자열입니다.</span>
+      </div>
+      <div class="field" id="keyField">
+        <label for="apikey">API 키</label>
+        <input type="password" id="apikey" placeholder="sk-..." autocomplete="off" spellcheck="false">
+        <span class="hint" id="keyHint">이 컴퓨터의 .env 파일에만 저장됩니다.</span>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <div class="grid">
+      <div class="field">
+        <label for="email">연락용 이메일</label>
+        <input type="text" id="email" class="mono" placeholder="you@example.com" autocomplete="off">
+        <span class="hint">OpenAlex·Crossref가 요청 한도를 늘려주고, Unpaywall은 이게 없으면 동작하지 않습니다.</span>
+      </div>
+      <div class="field">
+        <label for="target">목표 논문 수</label>
+        <input type="number" id="target" min="1" max="30" value="5">
+        <span class="hint">검증을 통과한 논문이 이만큼 모이면 멈춥니다.</span>
+      </div>
+      <div class="field">
+        <label for="rounds">최대 재시도 회차</label>
+        <input type="number" id="rounds" min="1" max="8" value="3">
+        <span class="hint">목표에 못 미치면 쿼리를 새로 만들어 다시 찾습니다.</span>
+      </div>
+      <div class="field">
+        <label for="thresh">제목 일치 기준</label>
+        <input type="number" id="thresh" min="0.3" max="1" step="0.05" value="0.70">
+        <span class="hint">낮추면 더 많이 통과하고, 잘못 통과할 확률도 올라갑니다.</span>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <div class="grid">
+      <div class="field">
+        <label for="coreKey">CORE API 키 <span class="opt">선택</span></label>
+        <input type="password" id="coreKey" placeholder="없으면 비워두세요" autocomplete="off" spellcheck="false">
+        <span class="hint">
+          링크가 아니라 <b>전문 텍스트</b>를 직접 받아옵니다. PDF 다운로드·파싱 단계를
+          건너뛰어 실패가 크게 줍니다.
+          <a href="https://core.ac.uk/services/api" target="_blank" rel="noopener">무료 발급</a>
+        </span>
+      </div>
+      <div class="field">
+        <label for="verifyMode">검증 방식</label>
+        <select id="verifyMode">
+          <option value="fast">빠르게 — 한 곳에서 확인되면 통과</option>
+          <option value="strict">엄격 — 모든 인덱스 교차 확인</option>
+        </select>
+        <span class="hint">엄격은 논문당 3초 이상 더 걸립니다.</span>
+      </div>
+    </div>
+
+    <div class="checks">
+      <label class="chk"><input type="checkbox" id="useArxiv" checked>
+        <span>arXiv도 검색</span></label>
+      <label class="chk"><input type="checkbox" id="fullText" checked>
+        <span>원문 받아서 요약 <em>(끄면 목록만 — 훨씬 빠릅니다)</em></span></label>
+      <label class="chk"><input type="checkbox" id="absFallback" checked>
+        <span>전문 없으면 초록으로 정리 <em>(전문 요약과 구분해 표시)</em></span></label>
+      <label class="chk"><input type="checkbox" id="graphOn" checked>
+        <span>옵시디언 그래프 구조 생성</span></label>
+      <label class="chk"><input type="checkbox" id="citeEdges" checked>
+        <span>논문 간 인용 관계 조회 <em>(느려집니다)</em></span></label>
+      <label class="chk"><input type="checkbox" id="exportOn" checked>
+        <span>Zotero 파일 내보내기 <em>(.ris / .bib / .csv)</em></span></label>
+      <label class="chk"><input type="checkbox" id="exportUnc">
+        <span>내보내기에 '검증 불확실'도 포함</span></label>
+    </div>
+
+    <hr class="divider">
+
+    <label class="toggle" style="margin-bottom:12px">
+      <input type="checkbox" id="obsToggle" checked>
+      <span class="track"></span>
+      <span class="tl">옵시디언 vault에 바로 저장</span>
+    </label>
+    <div class="field">
+      <label for="savePath" id="pathLabel">Vault 경로</label>
+      <input type="text" id="savePath" class="mono" placeholder="~/Documents/MyVault" autocomplete="off">
+      <span class="hint" id="pathHint">노트가 이 폴더 아래 <code>papers/</code>와 <code>sessions/</code>에 쌓입니다.</span>
+      <div class="pathnote neutral" id="pathNote"></div>
+    </div>
+
+    <div style="margin-top:20px">
+      <button class="btn" id="saveBtn">설정 저장</button>
+    </div>
+  </section>
+
+  <!-- 실행 -->
+  <section class="panel">
+    <h2>연구 질문</h2>
+    <p class="sub">찾고 싶은 주제를 자연어로 쓰세요. 검색 키워드는 LLM이 영어로 만들어 냅니다.</p>
+    <textarea id="question" placeholder="예) RAG 시스템에서 환각을 줄이는 최근 기법들"></textarea>
+    <div class="seedbox">
+      <label for="seeds">이미 아는 관련 논문 <span class="opt">선택</span></label>
+      <textarea id="seeds" rows="3" placeholder="한 줄에 하나씩. DOI도 되고 제목도 됩니다.&#10;10.1016/j.jbusres.2023.114* 또는&#10;Organizational adoption of AI agents"></textarea>
+      <span class="hint">
+        확실히 관련 있는 논문을 한두 편만 넣어도 결과가 크게 달라집니다.
+        그 논문의 <b>분야 용어</b>를 검색어에 쓰고, <b>참고문헌과 피인용 논문</b>까지
+        따라가기 때문입니다 — 키워드 검색이 못 찾는 논문이 여기서 나옵니다.
+      </span>
+      <div class="seednote" id="seedNote"></div>
+    </div>
+
+    <div class="runrow">
+      <button class="btn" id="runBtn">탐색 시작</button>
+      <button class="btn ghost hidden" id="cancelBtn">중단</button>
+    </div>
+  </section>
+
+  <!-- 판정 원장 (signature) -->
+  <section class="seedpanel" id="seedPanel">
+    <h4>시드 논문에서 출발</h4>
+    <ul id="seedList"></ul>
+    <div class="vocab" id="seedVocab"></div>
+  </section>
+
+  <section class="donebar" id="doneBar">
+    <div class="donehead">
+      <span class="dicon" id="doneIcon" aria-hidden="true">✓</span>
+      <span class="dtitle" id="doneTitle">탐색을 마쳤습니다</span>
+      <span class="delapsed" id="doneElapsed"></span>
+    </div>
+    <div class="dstats" id="doneStats"></div>
+    <div class="dpath" id="donePath"></div>
+  </section>
+
+  <section class="ledger" id="ledger">
+    <div class="ledgerhead">
+      <span class="t">판정 원장</span>
+      <span class="n" id="ledgerCount">0건 검사</span>
+    </div>
+    <div class="nowline" id="nowline"></div>
+    <div class="strip">
+      <div class="seg v" id="segV"></div>
+      <div class="seg u" id="segU"></div>
+      <div class="seg n" id="segN"></div>
+      <div class="seg x" id="segX"></div>
+    </div>
+    <div class="chips">
+      <button class="chip" data-f="all" aria-pressed="true">전체 <span class="c" id="cAll">0</span></button>
+      <button class="chip" data-f="verified" aria-pressed="false"><span class="dot v"></span>검증 통과 <span class="c" id="cV">0</span></button>
+      <button class="chip" data-f="uncertain" aria-pressed="false"><span class="dot u"></span>불확실 <span class="c" id="cU">0</span></button>
+      <button class="chip" data-f="not_found" aria-pressed="false"><span class="dot n"></span>확인 실패 <span class="c" id="cN">0</span></button>
+      <button class="chip" data-f="irrelevant" aria-pressed="false"><span class="dot x"></span>무관 <span class="c" id="cX">0</span></button>
+    </div>
+  </section>
+
+  <div id="results"></div>
+
+  <section id="logwrap">
+    <div class="ledgerhead"><span class="t">실행 기록</span></div>
+    <div id="log"></div>
+  </section>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+
+/* 테마.
+   저장은 localStorage 대신 서버 설정에 맡긴다 — 이 앱은 이미 서버를 쓰고,
+   설정이 한 곳에 모여 있어야 브라우저를 바꿔도 유지된다.
+   서버 응답 전까지는 시스템 설정을 따른다(깜빡임 방지). */
+function applyTheme(mode){
+  const dark = mode === "dark" ||
+    (mode !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+  document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+  const b = $("themeBtn");
+  if (b){
+    b.textContent = dark ? "☀" : "☾";
+    b.title = dark ? "밝은 화면으로" : "어두운 화면으로";
+  }
+  return dark;
+}
+let THEME_MODE = "auto";
+applyTheme(THEME_MODE);
+const esc = s => { const d = document.createElement("div"); d.textContent = s == null ? "" : String(s); return d.innerHTML; };
+
+let CFG = null, JOB = null, TIMER = null, CURSOR = 0;
+let PAPERS = [], FILTER = "all";
+
+function toast(msg){
+  const t = $("toast"); t.textContent = msg; t.classList.add("on");
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("on"), 2600);
+}
+
+let SERVER_OK = false;
+
+/* file:// 로 열면 fetch가 상대경로를 file:///api/... 로 풀어서 무조건 실패한다.
+   이걸 "경로가 잘못됐다"로 보여주면 사용자가 엉뚱한 데를 고치게 된다. */
+function showOffline(reason){
+  const el = $("offline");
+  if (location.protocol === "file:"){
+    $("offlineWhy").textContent =
+      "이 파일을 브라우저로 직접 열었습니다. 화면은 보이지만 검색·검증·저장을 할 수 없습니다. " +
+      "그 일은 같이 들어 있는 파이썬 서버가 합니다.";
+  } else {
+    $("offlineWhy").textContent =
+      "서버에 연결하지 못했습니다" + (reason ? ` (${reason})` : "") +
+      ". 서버가 꺼졌거나 다른 포트에서 실행 중일 수 있습니다.";
+  }
+  el.classList.add("on");
+}
+
+async function api(path, opts){
+  const r = await fetch(path, opts);
+  if (!r.ok && r.status >= 500) throw new Error("서버 오류 " + r.status);
+  return r;
+}
+
+/* ── 설정 ───────────────────────────────────────── */
+
+async function loadConfig(){
+  let r;
+  try {
+    r = await fetch("/api/config");
+  } catch (e) {
+    SERVER_OK = false; showOffline(""); throw e;
+  }
+  if (!r.ok){ SERVER_OK = false; showOffline("HTTP " + r.status); throw new Error("config"); }
+
+  CFG = await r.json();
+  SERVER_OK = true;
+  $("offline").classList.remove("on");
+
+  const ps = $("provider"); ps.innerHTML = "";
+  for (const [k, v] of Object.entries(CFG.providers)){
+    ps.insertAdjacentHTML("beforeend", `<option value="${esc(k)}">${esc(v.label)}</option>`);
+  }
+  ps.value = CFG.provider;
+  fillModels(CFG.model);
+
+  $("email").value = CFG.contact_email || "";
+  $("target").value = CFG.search?.target_verified ?? 5;
+  $("rounds").value = CFG.search?.max_rounds ?? 3;
+  $("thresh").value = CFG.verify?.title_similarity_threshold ?? 0.70;
+
+  THEME_MODE = CFG.theme || "auto";
+  applyTheme(THEME_MODE);
+
+  $("verifyMode").value = (CFG.verify?.mode === "strict") ? "strict" : "fast";
+  $("useArxiv").checked   = CFG.search?.use_arxiv !== false;
+  $("fullText").checked = CFG.fetch_fulltext !== false;
+  $("absFallback").checked = CFG.abstract_fallback !== false;
+  syncFullText();
+  $("graphOn").checked    = CFG.graph?.enabled !== false;
+  $("citeEdges").checked  = CFG.graph?.citation_edges !== false;
+  $("exportOn").checked   = CFG.export?.enabled !== false;
+  $("exportUnc").checked  = CFG.export?.include_uncertain === true;
+  if (CFG.core_key_set){
+    $("coreKey").placeholder = CFG.core_key_masked || "저장됨";
+  }
+
+  $("obsToggle").checked = CFG.obsidian_enabled !== false;
+  $("savePath").value = CFG.obsidian_enabled !== false ? (CFG.vault_path || "") : (CFG.output_dir || "./output");
+  syncObsidianUI();
+  checkPath();
+}
+
+function fillModels(selected){
+  const p = $("provider").value;
+  const ms = $("model"); ms.innerHTML = "";
+  for (const m of CFG.providers[p].models){
+    ms.insertAdjacentHTML("beforeend", `<option value="${esc(m)}">${esc(m)}</option>`);
+  }
+  if (selected && CFG.providers[p].models.includes(selected)) ms.value = selected;
+
+  const needsKey = !!CFG.providers[p].env;
+  $("keyField").classList.toggle("hidden", !needsKey);
+  if (needsKey){
+    const has = CFG.key_set?.[p];
+    $("apikey").placeholder = has ? (CFG.key_masked[p] || "저장됨") : "sk-...";
+    $("keyHint").textContent = has
+      ? "이미 저장된 키가 있습니다. 바꾸려면 새 키를 입력하세요."
+      : "이 컴퓨터의 .env 파일에만 저장됩니다.";
+  }
+}
+
+function syncObsidianUI(){
+  const on = $("obsToggle").checked;
+  $("pathLabel").textContent = on ? "Vault 경로" : "저장 폴더";
+  $("pathHint").innerHTML = on
+    ? "노트가 이 폴더 아래 <code>papers/</code>와 <code>sessions/</code>에 쌓입니다."
+    : "같은 마크다운 파일을 이 폴더에 저장합니다. 나중에 vault로 옮겨도 그대로 열립니다.";
+}
+
+let pathTimer = null;
+async function checkPath(){
+  let p = $("savePath").value.trim();
+  // 윈도우에서 "경로 복사"하면 따옴표가 딸려온다
+  p = p.replace(/^["']|["']$/g, "").trim();
+  const note = $("pathNote");
+  if (!p){ note.textContent = ""; return; }
+  if (!SERVER_OK){
+    note.className = "pathnote bad";
+    note.textContent = "서버가 실행 중이 아니라 확인할 수 없습니다";
+    return;
+  }
+  try {
+    const r = await fetch("/api/check-path", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({path: p})
+    });
+    const d = await r.json();
+    note.className = "pathnote " + (d.ok ? (d.is_vault ? "ok" : "neutral") : "bad");
+    if (d.ok && d.is_vault) note.textContent = "옵시디언 vault를 확인했습니다";
+    else if (d.ok && $("obsToggle").checked) note.textContent = d.message + " (.obsidian 폴더는 없습니다 — 저장은 됩니다)";
+    else note.textContent = d.message;
+  } catch {
+    SERVER_OK = false;
+    note.className = "pathnote bad";
+    note.textContent = "서버 연결이 끊겼습니다";
+    showOffline("");
+  }
+}
+
+const cleanPath = () => $("savePath").value.trim().replace(/^["\']|["\']$/g, "").trim();
+
+async function saveConfig(){
+  const p = $("provider").value;
+  const body = {
+    provider: p, model: $("model").value,
+    api_key: $("apikey").value.trim(),
+    contact_email: $("email").value.trim(),
+    target_verified: $("target").value,
+    max_rounds: $("rounds").value,
+    title_similarity_threshold: $("thresh").value,
+    core_api_key: $("coreKey").value.trim(),
+    verify_mode: $("verifyMode").value,
+    use_arxiv: $("useArxiv").checked,
+    fetch_fulltext: $("fullText").checked,
+    abstract_fallback: $("absFallback").checked,
+    graph_enabled: $("graphOn").checked,
+    citation_edges: $("citeEdges").checked,
+    export_enabled: $("exportOn").checked,
+    export_include_uncertain: $("exportUnc").checked,
+    theme: THEME_MODE,
+    obsidian_enabled: $("obsToggle").checked,
+    vault_path: cleanPath(), output_dir: cleanPath(),
+  };
+  try {
+    const r = await fetch("/api/config", {
+      method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body)
+    });
+    if (r.ok){
+      $("apikey").value = ""; $("coreKey").value = "";
+      await loadConfig(); toast("설정을 저장했습니다");
+    }
+    else toast("저장하지 못했습니다 (HTTP " + r.status + ")");
+  } catch { SERVER_OK = false; showOffline(""); }
+}
+
+/* ── 실행 ───────────────────────────────────────── */
+
+async function run(){
+  const q = $("question").value.trim();
+  if (!q){ toast("연구 질문을 입력하세요"); $("question").focus(); return; }
+
+  PAPERS = []; CURSOR = 0; FILTER = "all";
+  $("results").innerHTML = "";
+  $("log").innerHTML = "";
+  RUN_STARTED = Date.now(); DONE_SHOWN = false; LAST_DONE = null;
+  $("doneBar").className = "donebar";
+  $("ledger").classList.add("on");
+  $("seedPanel").classList.remove("on");
+  $("seedList").innerHTML = ""; $("seedVocab").innerHTML = "";
+  $("logwrap").classList.add("on");
+  document.querySelectorAll(".chip").forEach(c => c.setAttribute("aria-pressed", c.dataset.f === "all"));
+  updateLedger();
+
+  $("runBtn").disabled = true; $("runBtn").textContent = "탐색 중";
+  $("cancelBtn").textContent = "중단"; $("cancelBtn").disabled = false;
+  $("cancelBtn").classList.remove("hidden");
+
+  try {
+    const seedLines = $("seeds").value.split("\n").map(x => x.trim()).filter(Boolean).slice(0,5);
+    const r = await fetch("/api/run", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({question:q, seeds:seedLines})
+    });
+    const d = await r.json();
+    if (d.error){ toast(d.error); finish(); return; }
+    JOB = d.job_id;
+    TIMER = setInterval(poll, 1000);
+    poll();
+  } catch { SERVER_OK = false; showOffline(""); finish(); }
+}
+
+async function poll(){
+  if (!JOB) return;
+  try {
+    const r = await fetch(`/api/job/${JOB}?cursor=${CURSOR}`);
+    const d = await r.json();
+    CURSOR = d.cursor;
+    for (const ev of d.events) handleEvent(ev.kind, ev.payload);
+    if (d.state !== "running"){
+      if (d.state === "error") addLog("실행이 중단되었습니다: " + d.error, "error");
+      finish();
+    }
+  } catch { /* 일시적 실패는 다음 폴링에서 회복 */ }
+}
+
+function finish(){
+  clearInterval(TIMER); TIMER = null; JOB = null;
+  $("nowline").innerHTML = "";
+  $("runBtn").disabled = false; $("runBtn").textContent = "탐색 시작";
+  $("cancelBtn").classList.add("hidden");
+}
+
+async function cancel(){
+  if (!JOB) return;
+  const jid = JOB;
+  $("cancelBtn").disabled = true;
+  $("cancelBtn").textContent = "중단 중";
+  addLog("중단 요청 — 여기까지의 결과를 저장합니다", "warn");
+
+  try { await fetch(`/api/cancel/${jid}`, {method:"POST"}); } catch {}
+
+  /* 중단을 누른 사람은 대개 조건을 바꿔 곧바로 다시 찾고 싶어 한다.
+     저장이 끝날 때까지 기다리게 하면 "재개가 안 된다"고 느낀다.
+     실행 버튼을 바로 풀어주고, 이전 작업은 뒤에서 저장을 마치게 둔다.
+     검색마다 결과 폴더가 따로 생기므로 겹쳐도 섞이지 않는다. */
+  $("runBtn").disabled = false;
+  $("runBtn").textContent = "다시 탐색";
+  $("nowline").innerHTML = "";
+
+  // 저장이 끝나는지 잠깐 더 지켜본다 (결과 경로를 로그에 남기기 위해)
+  let n = 0;
+  const watch = setInterval(async () => {
+    if (++n > 20 || JOB !== jid){ clearInterval(watch); return; }
+    try {
+      const r = await fetch(`/api/job/${jid}?cursor=${CURSOR}`);
+      const d = await r.json();
+      CURSOR = d.cursor;
+      for (const ev of d.events) handleEvent(ev.kind, ev.payload);
+      if (d.state !== "running"){
+        clearInterval(watch);
+        if (JOB === jid) finish();
+        addLog("저장을 마쳤습니다", "warn");
+        if (!DONE_SHOWN) showDone(LAST_DONE || {}, true);
+      }
+    } catch { clearInterval(watch); }
+  }, 700);
+
+  clearInterval(TIMER); TIMER = null; JOB = null;
+  $("cancelBtn").classList.add("hidden");
+  $("cancelBtn").disabled = false;
+  $("cancelBtn").textContent = "중단";
+}
+
+const STAGE_LABEL = {
+  seeds:"시드 논문 확인 중", abstract:"초록으로 정리하는 중",
+  graph:"그래프 구조 만드는 중", save:"노트 저장 중", export:"내보내기 파일 만드는 중", citations:"참고문헌·피인용 따라가는 중",
+  expand:"검색어 만드는 중", search:"논문 찾는 중", core:"전문 텍스트 찾는 중", verify:"존재 확인 중",
+  oa:"전문 구할 수 있는지 확인 중", fetch:"전문 내려받는 중",
+  parse:"본문 읽는 중", summarize:"요약 만드는 중 (오래 걸립니다)", save:"노트 저장 중",
+};
+
+let RUN_STARTED = 0, DONE_SHOWN = false, LAST_DONE = null;
+
+/* 완료 표시.
+   지금까지 완료 정보는 실행 기록에만 들어갔는데, 그 영역은 화면 맨 아래라
+   결과 카드를 보고 있으면 눈에 안 들어온다. 끝났는지 아닌지 모르는 게
+   가장 답답한 상태라, 결과 위에 배너로 띄운다. */
+function showDone(p, stopped){
+  const bar = $("doneBar");
+  const total = (p.verified || 0) + (p.uncertain || 0) + (p.not_found || 0);
+  const nothing = total === 0;
+
+  bar.className = "donebar on" + (stopped ? " stopped" : (nothing ? " empty" : ""));
+  // 아이콘 폰트에 의존하지 않는다 — 오프라인이거나 CDN이 막히면 빈칸이 된다
+  $("doneIcon").textContent = stopped ? "■" : (nothing ? "!" : "✓");
+  $("doneTitle").textContent = stopped
+    ? "중단했습니다 — 여기까지 저장됨"
+    : (nothing ? "조건에 맞는 논문을 찾지 못했습니다" : "탐색을 마쳤습니다");
+
+  const secs = RUN_STARTED ? Math.round((Date.now() - RUN_STARTED) / 1000) : 0;
+  $("doneElapsed").textContent = secs
+    ? (secs >= 60 ? `${Math.floor(secs/60)}분 ${secs%60}초` : `${secs}초`) : "";
+
+  const stats = [];
+  if (p.summarized)      stats.push(`<span class="dstat good">전문 요약 <b>${p.summarized}</b></span>`);
+  if (p.abstract_only)   stats.push(`<span class="dstat warn">초록 기반 <b>${p.abstract_only}</b></span>`);
+  const noSum = (p.verified || 0) - (p.summarized || 0) - (p.abstract_only || 0);
+  if (noSum > 0)         stats.push(`<span class="dstat">요약 없음 <b>${noSum}</b></span>`);
+  if (p.uncertain)       stats.push(`<span class="dstat">불확실 <b>${p.uncertain}</b></span>`);
+  if (p.not_found)       stats.push(`<span class="dstat">확인 실패 <b>${p.not_found}</b></span>`);
+  if (p.irrelevant)      stats.push(`<span class="dstat">무관 제외 <b>${p.irrelevant}</b></span>`);
+  $("doneStats").innerHTML = stats.join("");
+
+  const lines = [];
+  if (p.session_dir) lines.push(`결과 폴더 &nbsp;<b>${esc(p.session_dir)}</b>`);
+  if ((p.exports || []).length) lines.push(`Zotero &nbsp;<b>exports/</b> 폴더에 ${p.exports.length}개 파일`);
+  if (nothing && !stopped){
+    lines.push("검색어를 바꾸거나, 설정에서 관련도 기준을 낮추거나, 시드 논문을 넣어 보세요.");
+  }
+  $("donePath").innerHTML = lines.join("<br>");
+
+  bar.scrollIntoView({behavior: "smooth", block: "nearest"});
+}
+
+function showStage(p){
+  const el = $("nowline");
+  const what = STAGE_LABEL[p.stage] || p.stage;
+  const who = p.title || p.query || "";
+  el.innerHTML = `<span class="pulse"></span><span class="what">${esc(what)}</span>` +
+                 (who ? `<span class="who">${esc(who)}</span>` : "");
+}
+
+function handleEvent(kind, p){
+  if (kind === "log"){
+    addLog(p.text, p.level);
+    // 시드 관련 로그는 패널로도 올려 눈에 띄게 한다
+    if (p.text.startsWith("시드 확인: ")){
+      const li = document.createElement("li");
+      li.textContent = p.text.slice(7);
+      $("seedList").appendChild(li);
+      $("seedPanel").classList.add("on");
+    } else if (p.text.startsWith("분야 용어 추출: ")){
+      $("seedVocab").innerHTML = "검색에 쓰는 분야 용어 &nbsp; <b>" +
+        esc(p.text.slice(9)) + "</b>";
+      $("seedPanel").classList.add("on");
+    } else if (p.text.startsWith("인용 그래프에서 후보")){
+      const d = document.createElement("div");
+      d.className = "vocab"; d.textContent = p.text;
+      $("seedPanel").appendChild(d);
+    }
+  }
+  else if (kind === "stage") showStage(p);
+  else if (kind === "query") addLog("쿼리 " + p.round + "회차 — " + p.queries.join(" · "), "q");
+  else if (kind === "paper"){ PAPERS.push(p); renderOne(p); updateLedger(); }
+  else if (kind === "done"){
+    $("nowline").innerHTML = "";
+    addLog(`끝났습니다 — 통과 ${p.verified}건 (전문 요약 ${p.summarized}건), 불확실 ${p.uncertain}건, 실패 ${p.not_found}건`);
+    if (p.abstract_only) addLog(`초록 기반 정리: ${p.abstract_only}건 (전문 요약 아님)`);
+    if (p.irrelevant) addLog(`질문과 무관으로 제외: ${p.irrelevant}건`);
+    const ft = p.fulltext_failures || {};
+    const keys = Object.keys(ft);
+    if (keys.length){
+      addLog("전문 확보 실패 원인:", "q");
+      keys.sort((a,b) => ft[b]-ft[a]).forEach(k => addLog(`   ${k}: ${ft[k]}건`));
+    }
+    if (p.session_dir) addLog("결과 폴더: " + p.session_dir);
+    addLog("세션 노트: " + p.moc_path);
+    LAST_DONE = p; DONE_SHOWN = true; showDone(p);
+    (p.exports || []).forEach(x => addLog("Zotero 내보내기: " + x));
+    if ($("obsToggle").checked) toast("옵시디언 vault에 저장했습니다");
+    else toast("저장 폴더에 마크다운으로 저장했습니다");
+  }
+}
+
+function addLog(text, level){
+  const el = document.createElement("div");
+  if (level) el.className = level;
+  el.textContent = text;
+  $("log").appendChild(el);
+  $("log").scrollTop = $("log").scrollHeight;
+}
+
+/* ── 판정 원장 ──────────────────────────────────── */
+
+const KEY = {verified:"v", uncertain:"u", not_found:"n", irrelevant:"x"};
+
+function updateLedger(){
+  const c = {verified:0, uncertain:0, not_found:0, irrelevant:0};
+  PAPERS.forEach(p => { if (c[p.status] !== undefined) c[p.status]++; });
+  const total = PAPERS.length || 1;
+
+  $("segV").style.flexGrow = c.verified;
+  $("segU").style.flexGrow = c.uncertain;
+  $("segN").style.flexGrow = c.not_found;
+  $("segX").style.flexGrow = c.irrelevant;
+  $("segV").textContent = c.verified && c.verified / total > .12 ? c.verified : "";
+  $("segU").textContent = c.uncertain && c.uncertain / total > .12 ? c.uncertain : "";
+  $("segN").textContent = c.not_found && c.not_found / total > .12 ? c.not_found : "";
+  $("segX").textContent = c.irrelevant && c.irrelevant / total > .12 ? c.irrelevant : "";
+
+  $("ledgerCount").textContent = PAPERS.length + "건 검사";
+  $("cAll").textContent = PAPERS.length;
+  $("cV").textContent = c.verified; $("cU").textContent = c.uncertain;
+  $("cN").textContent = c.not_found; $("cX").textContent = c.irrelevant;
+}
+
+function applyFilter(f){
+  FILTER = f;
+  document.querySelectorAll(".chip").forEach(c => c.setAttribute("aria-pressed", c.dataset.f === f));
+  document.querySelectorAll(".rec").forEach(el => {
+    el.classList.toggle("hidden", f !== "all" && el.dataset.status !== f);
+  });
+}
+
+/* ── 결과 카드 ──────────────────────────────────── */
+
+function renderOne(p){
+  const k = KEY[p.status];
+  const el = document.createElement("article");
+  el.className = "rec " + k;
+  el.dataset.status = p.status;
+  if (FILTER !== "all" && FILTER !== p.status) el.classList.add("hidden");
+
+  const who = (p.authors && p.authors.length)
+    ? p.authors.slice(0,3).join(", ") + (p.authors.length > 3 ? ` 외 ${p.authors.length-3}명` : "")
+    : "저자 정보 없음";
+
+  let badges = "";
+  const label = {verified:"검증 통과", uncertain:"불확실", not_found:"확인 실패",
+                 irrelevant:"질문과 무관"}[p.status] || p.status;
+  badges += `<span class="bdg ${k}">${label}</span>`;
+
+  if (p.status === "verified"){
+    if (p.summary_depth === "abstract_only"){
+      badges += `<span class="bdg u">초록 기반</span>`;
+      if (p.method_missing) badges += `<span class="bdg u">방법 정보 없음</span>`;
+      if (p.quotes_total > 0){
+        const all = p.quotes_verified === p.quotes_total;
+        badges += `<span class="bdg ${all ? "v" : "n"}">인용 ${p.quotes_verified}/${p.quotes_total}</span>`;
+      }
+    } else if (p.summary_depth === "full_text"){
+      badges += `<span class="bdg v">전문 요약</span>`;
+      if (p.quotes_total > 0){
+        const all = p.quotes_verified === p.quotes_total;
+        badges += `<span class="bdg ${all ? "v" : "u"}">인용 ${p.quotes_verified}/${p.quotes_total}</span>`;
+      }
+    } else {
+      badges += `<span class="bdg u">요약 불가</span><span class="bdg">OA ${esc(p.oa_status)}</span>`;
+    }
+    if (p.tier && p.tier !== "unknown") badges += `<span class="bdg">${p.tier === "top" ? "상위 저널" : "일반 저널"}</span>`;
+  }
+  if (p.doi) badges += `<span class="bdg">DOI</span>`;
+  if (p.arxiv_id) badges += `<span class="bdg">arXiv</span>`;
+
+  let ev = "";
+  if (p.lookups && p.lookups.length){
+    ev = `<table class="ev"><thead><tr><th>인덱스</th><th>결과</th><th>상세</th></tr></thead><tbody>` +
+      p.lookups.map(l => `<tr><td class="oc">${esc(l.index)}</td><td class="oc oc-${esc(l.outcome)}">${esc(l.outcome)}</td><td>${esc(l.detail)}</td></tr>`).join("") +
+      `</tbody></table>`;
+  }
+
+  let sects = "";
+  for (const [h, t] of Object.entries(p.sections || {})){
+    if (t && t.trim()) sects += `<div class="sect"><h4>${esc(h)}</h4><p>${esc(t.trim())}</p></div>`;
+  }
+
+  let quotes = "";
+  if (p.quotes && p.quotes.length){
+    quotes = `<div class="sect"><h4>인용 원문 대조</h4>` + p.quotes.map(q =>
+      `<div class="q"><span class="pg">${q.page ? "p."+q.page : "—"}</span>` +
+      `<span class="tx">${esc(q.quote)}</span>` +
+      `<span class="st ${q.verified ? "y" : "n"}">${q.verified ? "일치" : "실패 " + q.ratio}</span></div>`
+    ).join("") + `</div>`;
+    if (p.quotes_verified < p.quotes_total){
+      quotes += `<div class="note">원문에서 찾지 못한 인용이 있습니다. 지우지 않고 남겨 둡니다 — 모델이 지어냈거나, PDF 추출 과정에서 문자열이 어긋났을 수 있습니다.</div>`;
+    }
+  }
+
+  let extra = "";
+  if (p.status === "verified" && p.summary_depth === "abstract_only"){
+    const m = p.method_missing
+      ? " <b>이 논문의 방법은 초록에 나오지 않아 비어 있습니다.</b>" : "";
+    extra = `<div class="note">전문을 구하지 못해 <b>초록만</b> 보고 정리했습니다. 초록에는 방법 상세가 거의 없습니다.${m} 논문을 고르는 데는 쓸 수 있지만, 인용하거나 방법을 논할 근거로는 쓸 수 없습니다.</div>`;
+  } else if (p.status === "verified" && p.summary_depth === "no_summary"){
+    extra = `<div class="note">전문도 초록도 확보하지 못해 요약하지 않았습니다. 링크와 메타데이터만 노트에 남깁니다.</div>`;
+  }
+
+  const links = [
+    p.doi ? `<a href="https://doi.org/${esc(p.doi)}" target="_blank" rel="noopener">DOI로 열기</a>` : "",
+    p.arxiv_id ? `<a href="https://arxiv.org/abs/${esc(p.arxiv_id)}" target="_blank" rel="noopener">arXiv에서 보기</a>` : "",
+  ].filter(Boolean).join(" · ");
+
+  el.innerHTML =
+    `<h3>${esc(p.title)}</h3>` +
+    `<div class="meta">${esc(who)} · ${esc(p.year || "연도 미상")}${p.venue ? " · " + esc(p.venue) : ""}</div>` +
+    `<div class="badges">${badges}</div>` +
+    `<div class="reason">${esc(p.reason)}</div>` +
+    extra +
+    (ev || sects || quotes
+      ? `<details class="more"><summary>검증 근거와 요약 보기</summary><div class="dbody">${ev}${sects}${quotes}${links ? `<div class="path">${links}</div>` : ""}${p.note_path ? `<div class="path">저장: ${esc(p.note_path)}</div>` : ""}</div></details>`
+      : "");
+
+  $("results").appendChild(el);
+}
+
+/* ── 바인딩 ─────────────────────────────────────── */
+
+/* 전문 확보를 끄면 초록 폴백도 돌지 않는다. 켜져 있는 것처럼 보이면
+   왜 초록 정리가 안 나오는지 알 수 없으므로 시각적으로 꺼둔다. */
+function syncFullText(){
+  const on = $("fullText").checked;
+  const ab = $("absFallback");
+  ab.disabled = !on;
+  ab.closest(".chk").style.opacity = on ? "" : ".45";
+}
+$("fullText").addEventListener("change", syncFullText);
+$("provider").addEventListener("change", () => fillModels(null));
+$("obsToggle").addEventListener("change", () => { syncObsidianUI(); checkPath(); });
+$("savePath").addEventListener("input", () => { clearTimeout(pathTimer); pathTimer = setTimeout(checkPath, 450); });
+$("saveBtn").addEventListener("click", saveConfig);
+$("runBtn").addEventListener("click", run);
+$("cancelBtn").addEventListener("click", cancel);
+$("themeBtn").addEventListener("click", async () => {
+  const nowDark = document.documentElement.getAttribute("data-theme") === "dark";
+  THEME_MODE = nowDark ? "light" : "dark";
+  applyTheme(THEME_MODE);
+  try {
+    await fetch("/api/config", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({theme: THEME_MODE}),
+    });
+  } catch { /* 저장 실패해도 이번 세션에는 적용된다 */ }
+});
+
+// 수동 선택 전에는 시스템 설정 변경을 따라간다
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+  if (THEME_MODE === "auto") applyTheme("auto");
+});
+
+$("toggleSettings").addEventListener("click", () => $("settings").classList.toggle("hidden"));
+document.querySelectorAll(".chip").forEach(c => c.addEventListener("click", () => applyFilter(c.dataset.f)));
+$("question").addEventListener("keydown", e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && !$("runBtn").disabled) run();
+});
+
+$("retryBtn").addEventListener("click", () => {
+  loadConfig().then(() => toast("서버에 연결했습니다")).catch(() => {});
+});
+
+loadConfig().catch(() => { /* showOffline이 이미 안내합니다 */ });
+</script>
+</body>
+</html>

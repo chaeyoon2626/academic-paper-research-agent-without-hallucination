@@ -1,0 +1,67 @@
+contact_email: your-email@example.com
+llm:
+  model: ollama/llama3.1
+  query_temperature: 0.4
+  summarize_temperature: 0.1
+  timeout: 180
+  max_tokens: 4000
+seeds:
+  follow_citations: true
+  use_references: true
+  use_citing: true
+search:
+  per_source_limit: 10
+  queries_per_round: 4
+  max_rounds: 3
+  target_verified: 5
+  use_arxiv: true
+  verify_workers: 4
+verify:
+  title_similarity_threshold: 0.7
+  mode: fast
+relevance:
+  enabled: true
+  min_score: 2.0
+  batch_size: 20
+core:
+  enabled: true
+oa:
+  use_unpaywall: true
+venue:
+  sjr_path: data/sjr_rankings.csv
+  sjr_delimiter: ;
+  core_path: data/core_rankings.csv
+cache:
+  enabled: true
+  path: ~/.cache/paper-agent/lookup.db
+  ttl_days: 90
+summarize:
+  fetch_fulltext: true
+  abstract_fallback: true
+  max_input_chars: 60000
+prompts:
+  query_expansion: prompts/query_expansion.md
+  relevance_check: prompts/relevance_check.md
+  summarize: prompts/summarize.md
+  summarize_abstract: prompts/summarize_abstract.md
+paths:
+  pdf_dir: ./downloads
+export:
+  enabled: true
+  dir: exports
+  formats:
+  - ris
+  - bibtex
+  - csv
+  include_uncertain: false
+graph:
+  enabled: true
+  citation_edges: true
+obsidian:
+  enabled: true
+  vault_path: /tmp/cv2
+  papers_dir: papers
+  keywords_dir: keywords
+  overwrite: false
+ui:
+  theme: auto
