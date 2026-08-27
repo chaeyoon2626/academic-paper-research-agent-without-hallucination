@@ -16,7 +16,7 @@ cd paper-research-agent
 python server.py     # 또는 start.bat 더블클릭
 ```
 
-![결과 화면](docs/02-results-light.png)
+![결과 화면](paper-research-agent/docs/02-results-light.png)
 
 *검증 통과·불확실·확인 실패·무관이 한눈에 구분됩니다. 실패한 것도 이유와 함께 남습니다.*
 
@@ -144,7 +144,7 @@ OpenAI · Anthropic · Gemini · Ollama를 별도 설치 없이 지원합니다.
 
 ### 설정 — 모든 기능을 한 화면에서
 
-<img src="docs/01-settings-light.png" width="100%">
+<img src="paper-research-agent/docs/01-settings-light.png" width="100%">
 
 이메일과 저장 경로만 채우면 바로 쓸 수 있습니다. 나머지는 기본값으로 두셔도 됩니다.
 
@@ -152,13 +152,13 @@ OpenAI · Anthropic · Gemini · Ollama를 별도 설치 없이 지원합니다.
 
 ### 결과 — 실패도 함께 보입니다
 
-<img src="docs/03-detail-light.png" width="100%">
+<img src="paper-research-agent/docs/03-detail-light.png" width="100%">
 
 카드를 펼치면 **인덱스별 조회 결과**와 **인용 원문 대조 결과**가 나옵니다. 원문에서 못 찾은 인용은 지우지 않고 `실패 0.31`로 남깁니다 — 조용히 지우면 요약이 100% 검증된 것처럼 착각하게 됩니다.
 
 ### 어두운 화면
 
-<img src="docs/02-results-dark.png" width="100%">
+<img src="paper-research-agent/docs/02-results-dark.png" width="100%">
 
 헤더의 ☾ 버튼으로 전환합니다. 기본은 시스템 설정을 따르고, 한 번 고르면 저장됩니다.
 
