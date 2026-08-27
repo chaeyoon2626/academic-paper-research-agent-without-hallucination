@@ -146,7 +146,7 @@ Conversely, when an identifier **is** real but the title and authors don't match
 
 ### Settings — everything in one place
 
-<img src="docs/01-settings-light.png" width="100%">
+<img src="paper-research-agent/docs/01-settings-light.png" width="100%">
 
 Fill in your email and a save path; the rest can stay at defaults.
 
@@ -154,13 +154,13 @@ Fill in your email and a save path; the rest can stay at defaults.
 
 ### Results — failures included
 
-<img src="docs/03-detail-light.png" width="100%">
+<img src="paper-research-agent/docs/03-detail-light.png" width="100%">
 
 Expanding a card shows **per-index lookup results** and **quote verification**. Quotes that couldn't be found in the source stay visible as `failed 0.31` — removing them silently would make the summary look fully verified when it isn't.
 
 ### Dark mode
 
-<img src="docs/02-results-dark.png" width="100%">
+<img src="paper-research-agent/docs/02-results-dark.png" width="100%">
 
 Toggle with the ☾ button in the header. Defaults to your system setting; your choice is remembered once you pick one.
 
