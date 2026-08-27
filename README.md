@@ -16,7 +16,7 @@ cd paper-research-agent
 python server.py     # or double-click start.bat
 ```
 
-![Results](academic-paper-research-agent-without-hallucination/docs/02-results-light.png)
+![결과 화면](https://raw.githubusercontent.com/<사용자계정>/paper-research-agent/main/docs/02-results-light.png)
 
 *Verified, uncertain, not-found, and off-topic are visually distinct. Failures stay visible, with reasons.*
 
